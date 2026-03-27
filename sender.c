@@ -8,8 +8,7 @@
 #include <string.h>
 #include <time.h>
 
-// 每个bit占用的时间槽：1ms
-#define BIT_SLOT_NS 1000000  // 1,000,000 ns = 1 ms
+#define BIT_SLOT_NS 1000000  // 1 ms
 
 static void sleep_ns(long ns) {
     struct timespec ts = {0, ns};
@@ -18,66 +17,70 @@ static void sleep_ns(long ns) {
 
 int main(void) {
     printf("[Sender] Starting up...\n");
-    fflush(stdout);
 
     void *handle = dlopen("libc.so.6", RTLD_LAZY);
-    if (!handle) {
-        fprintf(stderr, "[Sender] dlopen failed\n");
-        return 1;
-    }
     void *libc_fn = dlsym(handle, "ecvt_r");
+
     if (!libc_fn) {
-        fprintf(stderr, "[Sender] dlsym failed\n");
+        printf("dlsym failed\n");
         return 1;
     }
-    printf("[Sender] libc address = %p\n", libc_fn);
-    fflush(stdout);
-    dlclose(handle);
 
-    const char *msg = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    printf("[Sender] libc address = %p\n", libc_fn);
+
+    // ===== Preamble =====
+    const uint8_t preamble[] = {
+        1,1,1,1,1,1,1,1,
+        0,0,0,0,0,0,0,0,
+        1,1,1,1,1,1,1,1,
+        0,0,0,0,0,0,0,0
+    };
+    size_t preamble_len = sizeof(preamble);
+
+    // ===== Message =====
+    const char *msg = "HELLO_WORLD_1234567890";
     size_t msg_len = strlen(msg);
-    size_t num_bits = msg_len * 8;  // 208 bits
+    size_t num_bits = msg_len * 8;
+
+    size_t total_bits = preamble_len + num_bits;
     unsigned long bit_index = 0;
 
     double pi = 3.141592653589793;
-    int decpt = 0, sign = 0;
+    int decpt, sign;
     char buf[64];
 
-    printf("[Sender] Sending: %s (%zu bits, slot=%dms)\n",
-           msg, num_bits, BIT_SLOT_NS / 1000000);
-    fflush(stdout);
+    printf("[Sender] Sending with sync...\n");
 
     while (1) {
-        size_t char_index = bit_index / 8;
-        int bit_pos = bit_index % 8;
-        int bit_to_send = (msg[char_index] >> bit_pos) & 1;
 
-        // Step 1: 先flush所有相关cache line
-        _mm_clflush((char*) libc_fn);
-        _mm_clflush((char*) libc_fn + 64);
-        _mm_clflush((char*) libc_fn + 128);
-        _mm_clflush((char*) libc_fn + 192);
-        _mm_clflush((char*) libc_fn + 256);
-        _mm_clflush((char*) libc_fn + 320);
-        _mm_clflush((char*) libc_fn + 384);
-        _mm_clflush((char*) libc_fn + 448);
+        int bit;
+
+        if (bit_index < preamble_len) {
+            bit = preamble[bit_index];
+        } else {
+            size_t data_index = (bit_index - preamble_len) % num_bits;
+            size_t char_index = data_index / 8;
+            int bit_pos = data_index % 8;
+            bit = (msg[char_index] >> bit_pos) & 1;
+        }
+
+        // Flush cache lines
+        for (int i = 0; i < 8; i++) {
+            _mm_clflush((char*)libc_fn + i * 64);
+        }
+
         _mm_mfence();
 
-        // Step 2: 发1则调用函数放回cache，发0则保持flush状态
-        if (bit_to_send == 1) {
-            int s = ecvt_r(pi, 20, &decpt, &sign, buf, sizeof(buf));
-            (void)s;
+        // Send 1 → make it strong (multiple accesses)
+        if (bit == 1) {
+            for (int i = 0; i < 5; i++) {
+                ecvt_r(pi, 20, &decpt, &sign, buf, sizeof(buf));
+            }
         }
 
-        // Step 3: 等待一个时间槽
         sleep_ns(BIT_SLOT_NS);
 
-        bit_index = (bit_index + 1) % num_bits;
-
-        if (bit_index == 0) {
-            printf("[Sender] One round done, repeating...\n");
-            fflush(stdout);
-        }
+        bit_index = (bit_index + 1) % total_bits;
     }
 
     return 0;
