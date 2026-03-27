@@ -8,7 +8,7 @@
 #include <x86intrin.h>
 #include <time.h>
 
-#define THRESHOLD_CYCLES 200
+#define THRESHOLD_CYCLES 1050
 #define BIT_SLOT_NS 1000000
 
 #define PREAMBLE_LEN 32
