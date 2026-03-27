@@ -69,7 +69,8 @@ int main() {
         }
         uint64_t t = total / 5;
 
-        int bit = (t < THRESHOLD_CYCLES) ? 1 : 0;
+        int bit = (t > THRESHOLD_CYCLES) ? 1 : 0;
+        printf("%d", bit); fflush(stdout);
 
         // ===== 同步阶段 =====
         if (!sync) {
