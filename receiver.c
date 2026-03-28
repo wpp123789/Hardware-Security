@@ -8,11 +8,9 @@
 #include <x86intrin.h>
 #include <time.h>
 
-#define THRESHOLD_CYCLES 1050
-#define BIT_SLOT_NS 1000000
-
-#define PREAMBLE_LEN 32
-#define MSG_LEN 22   // HELLO_WORLD_1234567890 长度
+#define THRESHOLD_CYCLES 506   // 用你测出来的值
+#define MSG_BITS (26 * 8)      // 26个字母，每个8bit = 208 bits
+#define BIT_SLOT_NS 1000000    // 和sender一样，1ms per bit
 
 static inline uint64_t rdtscp64() {
     unsigned aux;
@@ -24,103 +22,87 @@ static void sleep_ns(long ns) {
     nanosleep(&ts, NULL);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
 
-    printf("[Receiver] Starting...\n");
+    int threshold = THRESHOLD_CYCLES;
 
-    void *handle = dlopen("libc.so.6", RTLD_LAZY);
-    void *libc_fn = dlsym(handle, "ecvt_r");
-
-    if (!libc_fn) {
-        printf("dlsym failed\n");
-        return 1;
+    // 支持 -t 参数覆盖阈值
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-t") == 0 && (i + 1) < argc) {
+            threshold = atoi(argv[++i]);
+        }
     }
 
+    printf("[Receiver] Starting up...\n");
+    printf("[Receiver] Threshold = %d cycles, slot = %d ms\n",
+           threshold, BIT_SLOT_NS / 1000000);
+    fflush(stdout);
+
+    // 获取和sender相同的libc函数地址
+    void *handle = dlopen("libc.so.6", RTLD_LAZY);
+    if (!handle) {
+        fprintf(stderr, "[Receiver] dlopen failed\n");
+        return 1;
+    }
+    void *libc_fn = dlsym(handle, "ecvt_r");
+    if (!libc_fn) {
+        fprintf(stderr, "[Receiver] dlsym failed\n");
+        return 1;
+    }
     printf("[Receiver] libc address = %p\n", libc_fn);
-
-    const uint8_t preamble[PREAMBLE_LEN] = {
-        1,1,1,1,1,1,1,1,
-        0,0,0,0,0,0,0,0,
-        1,1,1,1,1,1,1,1,
-        0,0,0,0,0,0,0,0
-    };
-
-    int preamble_buf[PREAMBLE_LEN];
-    int preamble_idx = 0;
-    int sync = 0;
-
-    int total_bits = MSG_LEN * 8;
-    int bits[1024];
-    int count = 0;
+    fflush(stdout);
+    dlclose(handle);
 
     double pi = 3.141592653589793;
-    int decpt, sign;
+    int decpt = 0, sign = 0;
     char buf[64];
 
+    // 收集一轮完整消息的bits
+    int bits[MSG_BITS];
+    int count = 0;
+    int round = 0;
+
+    printf("[Receiver] Waiting for bits...\n");
+    fflush(stdout);
+
     while (1) {
+        // Step 1: 计时访问 ecvt_r
+        uint64_t start = rdtscp64();
+        int s = ecvt_r(pi, 20, &decpt, &sign, buf, sizeof(buf));
+        (void)s;
+        uint64_t end = rdtscp64();
+        uint64_t t = end - start;
 
-        // ===== 多次采样（降噪）=====
-        uint64_t total = 0;
-        for (int i = 0; i < 5; i++) {
-            uint64_t start = rdtscp64();
-            ecvt_r(pi, 20, &decpt, &sign, buf, sizeof(buf));
-            uint64_t end = rdtscp64();
-            total += (end - start);
-        }
-        uint64_t t = total / 5;
-
-        int bit = (t > THRESHOLD_CYCLES) ? 1 : 0;
-        printf("%d", bit); fflush(stdout);
-
-        // ===== 同步阶段 =====
-        if (!sync) {
-            preamble_buf[preamble_idx++] = bit;
-
-            if (preamble_idx == PREAMBLE_LEN) {
-                int match = 1;
-                for (int i = 0; i < PREAMBLE_LEN; i++) {
-                    if (preamble_buf[i] != preamble[i]) {
-                        match = 0;
-                        break;
-                    }
-                }
-
-                if (match) {
-                    printf("\n[Receiver] SYNC ACQUIRED!\n");
-                    sync = 1;
-                    count = 0;
-                }
-
-                preamble_idx = 0;
-            }
-
-            sleep_ns(BIT_SLOT_NS);
-            continue;
-        }
-
-        // ===== 收数据 =====
+        // Step 2: 判断是hit还是miss
+        int bit = (t < threshold) ? 1 : 0;
         bits[count++] = bit;
 
+        // Step 3: 等待下一个时间槽
         sleep_ns(BIT_SLOT_NS);
 
-        // ===== 解码 =====
-        if (count == total_bits) {
+        // Step 4: 收够一轮后解码打印
+        if (count == MSG_BITS) {
+            round++;
+            printf("\n[Receiver] Round %d decoded: ", round);
 
-            printf("[Receiver] Decoded: ");
-
-            for (int i = 0; i < MSG_LEN; i++) {
+            for (int i = 0; i < 26; i++) {
                 char c = 0;
                 for (int b = 0; b < 8; b++) {
                     c |= bits[i * 8 + b] << b;
                 }
                 printf("%c", c);
             }
-
             printf("\n");
+
+            // 打印原始比特流（前40bits）供调试
+            printf("[Receiver] First 40 bits: ");
+            for (int i = 0; i < 40; i++) {
+                printf("%d", bits[i]);
+            }
+            printf("...\n");
             fflush(stdout);
 
-            count = 0;
-            sync = 0;  // 重新同步（更稳）
+            count = 0;  // 重置，接收下一轮
         }
     }
 
