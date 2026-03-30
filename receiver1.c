@@ -5,7 +5,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <x86intrin.h>
-#define THRESHOLD 50
+#define THRESHOLD 94
 #define SYNC_HEADER 0x3F2
 #define BIT_INTERVAL 1000 
 
@@ -40,9 +40,7 @@ int main() {
         if (shift_reg == SYNC_HEADER) {
             printf("\n[收到消息]: ");
             fflush(stdout);
-            // 2. 关键修改：相位补偿
-            // 检测到同步头结束时，我们处于“同步位”的末尾。
-            // 多等 500us（半个位时间），让接下来的采样点落在数据位的“正中央”。
+           
             usleep(BIT_INTERVAL+(BIT_INTERVAL/2)); 
 
             while(1) {
@@ -55,7 +53,6 @@ int main() {
                    
                 }
                 
-                // 结束符判断：如果读到 \0 或非打印字符则退出
                 if (c == 0 || c > 126) break; 
                 printf("%c", c);
                 fflush(stdout);
