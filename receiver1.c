@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -24,7 +25,11 @@ static inline uint64_t reload_t(void *addr) {
 }
 
 int main() {
-    // ... mmap 部分保持不变 ...
+    const char *path = "/lib64/libc.so.6";
+    if (access(path, F_OK) == -1) path = "/lib/x86_64-linux-gnu/libc.so.6";
+    int fd = open(path, O_RDONLY);
+    // 映射长度 2MB，确保偏移量 0x164ac0 在范围内
+    void *map_base = mmap(NULL, 2*1024*1024, PROT_READ, MAP_SHARED, fd, 0);
     void *addr = (uint8_t *)map_base + 0x164ac0;
 
     printf("[Receiver] 硬件校准完成，准备接收数据...\n");
