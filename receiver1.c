@@ -21,21 +21,13 @@ static inline uint64_t reload_t(void *addr) {
 }
 
 int main() {
-    // 自动适配路径
     const char *path = "/lib64/libc.so.6";
     if (access(path, F_OK) == -1) path = "/lib/x86_64-linux-gnu/libc.so.6";
-
     int fd = open(path, O_RDONLY);
-    if (fd < 0) { perror("Open failed"); return 1; }
-
-    // 映射长度 2MB 确保覆盖偏移量
     void *map_base = mmap(NULL, 2*1024*1024, PROT_READ, MAP_SHARED, fd, 0);
-    if (map_base == MAP_FAILED) { perror("mmap failed"); return 1; }
-
-    // 使用与 Sender 相同的偏移量
     void *addr = (uint8_t *)map_base + 0x164ac0;
 
-    printf("[Receiver] 映射成功! 地址: %p\n", addr);
+    printf("[Receiver] 准备接收数据...\n");
 
     uint32_t shift_reg = 0;
     while (1) {
@@ -43,9 +35,26 @@ int main() {
         int bit = (t < THRESHOLD) ? 1 : 0;
 
         shift_reg = ((shift_reg << 1) | bit) & 0x3FF;
+
+        // 检查是否匹配同步头
         if (shift_reg == SYNC_HEADER) {
-            printf("!"); // 抓到同步头打印感叹号
-            fflush(stdout);
+            printf("\n[收到消息]: ");
+            
+            // 同步后，开始抓取接下来的字符
+            while(1) {
+                uint8_t current_char = 0;
+                for (int i = 0; i < 8; i++) {
+                    usleep(500); // 与发送端间隔一致
+                    uint64_t rt = reload_t(addr);
+                    int b = (rt < THRESHOLD) ? 1 : 0;
+                    current_char = (current_char << 1) | b;
+                }
+                
+                if (current_char == 0 || current_char > 126) break; // 结束符或乱码退出
+                printf("%c", current_char);
+                fflush(stdout);
+            }
+            shift_reg = 0; // 重置寄存器，准备下一次同步
         }
         usleep(500); 
     }
