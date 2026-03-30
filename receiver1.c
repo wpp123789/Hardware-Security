@@ -5,9 +5,8 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <x86intrin.h>
-#define THRESHOLD 96
+#define THRESHOLD 50
 #define SYNC_HEADER 0x3F2
-// 建议将位间隔提高到 1000us (1ms) 以增加作业的可靠性
 #define BIT_INTERVAL 1000 
 
 
