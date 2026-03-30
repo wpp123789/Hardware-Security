@@ -10,18 +10,19 @@
 
 void send_bit(void *addr, int bit) {
     if (bit == 1) {
-        // 强化信号：循环 100 次纯内存读取
-        for (int i = 0; i < 100; i++) {
-            *(volatile uint8_t *)addr;
+        // 强化信号：增加循环次数，确保在所有核心可见
+        for (int i = 0; i < 500; i++) {
+            (void)*(volatile uint8_t *)addr;
             _mm_mfence();
         }
     } else {
-        // 发送 0：彻底清除
-        _mm_clflush(addr);
+        _mm_clflush(addr); // 发送 0
     }
     _mm_mfence();
-    usleep(1000); // 必须是 1000，不要改小
+    usleep(BIT_INTERVAL); // 严格匹配 1000us
 }
+
+// send_byte 和 main 中的逻辑保持不变
 // 发送一个字节（8位）
 void send_byte(void *addr, uint8_t byte) {
     for (int i = 7; i >= 0; i--) {
