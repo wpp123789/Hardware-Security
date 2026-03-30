@@ -39,71 +39,57 @@ void print_stats(const char *label , timing_stats *stats) {
 }
 
 int main(void) {
-
-    printf("[Receiver] Starting up...\n");
-    fflush(stdout);
-
-    // Get the real address from libc
+    // 1. 获取地址逻辑保持不变
     void *handle = dlopen("libc.so.6", RTLD_LAZY);
-    if (! handle) {
-        fprintf(stderr , "[Receiver] dlopen failed\n");
-        return 1;
-    }
-    //void *libc_fn = dlsym(handle , "atoi");
-    void *libc_fn = dlsym(handle , "ecvt_r");
-    if (! libc_fn) {
-        fprintf(stderr , "[Receiver] dlsym failed\n");
-        return 1;
-    }
-    printf("[Receiver] libc address = %p\n", libc_fn);
-    fflush(stdout);
+    void *libc_fn = dlsym(handle, "ecvt_r"); 
     dlclose(handle);
 
+    // 2. 将所有变量定义移出循环，防止栈操作干扰
     uint64_t iterations = 0;
     timing_stats flushed = {0}, nonflushed = {0};
-    srand(time(NULL));
+    uint64_t start, end, t;
+    int do_flush;
+    volatile uint8_t dummy; // 用于强制读取
 
-    int val = 0, cnt = 0;
+    printf("[Receiver] 正在进行纯净内存测试，地址: %p\n", libc_fn);
 
     while (1) {
+        do_flush = rand() % 2;
 
-        int do_flush = rand() % 2;
-
-        _mm_mfence ();
         if (do_flush) {
+            // 只清空我们要测的那一个缓存行（64字节）
             _mm_clflush(libc_fn);
-            _mm_clflush(libc_fn + 64);
-            _mm_clflush(libc_fn + 128);
-            _mm_clflush(libc_fn + 192);
-            _mm_clflush(libc_fn + 256);
-            _mm_clflush(libc_fn + 320);
-            _mm_clflush(libc_fn + 384);
-            _mm_clflush(libc_fn + 448);
         }
-        _mm_mfence ();
-        double pi = 3.141592653589793;
-        int decpt = 0, sign = 0;
-        char buf [64];
+        
+        // 关键：给 CPU 一点时间处理 clflush
+        _mm_mfence();
 
-        uint64_t start , end;
-        start = rdtscp64 ();
-        int ret = ecvt_r(pi , 20, &decpt , &sign , buf , sizeof(buf));
-        //int result = atoi ("1234567890");
-        end = rdtscp64 ();
-        uint64_t t = end - start;
+        // --- 核心测量区：除了计时和读取，什么都不放 ---
+        _mm_lfence(); // 保证之前的指令全部结束
+        start = rdtscp64();
+
+        dummy = *(volatile uint8_t *)libc_fn; 
+
+        _mm_lfence(); // 保证读取结束后再停表
+        end = rdtscp64();
+        // ------------------------------------------
+
+        t = end - start;
 
         if (do_flush)
-            update_stats (&flushed , t);
+            update_stats(&flushed, t);
         else
-            update_stats (& nonflushed , t);
+            update_stats(&nonflushed, t);
 
-        iterations ++;
-
-        if (iterations % REPORT_INTERVAL == 0) {
-            fprintf(stderr , "\n--- Stats after %lu iterations ---\n",
-                    iterations);
-            print_stats("Flushed", &flushed);
-            print_stats("Non-Flushed", &nonflushed);
+        if (++iterations % REPORT_INTERVAL == 0) {
+            fprintf(stderr, "\n--- Stats after %lu iterations ---\n", iterations);
+            print_stats("Flushed (Miss)", &flushed);
+            print_stats("Non-Flushed (Hit)", &nonflushed);
+            
+            // 建议的阈值计算
+            double hit_avg = nonflushed.sum / nonflushed.count;
+            double miss_avg = flushed.sum / flushed.count;
+            fprintf(stderr, ">>> 建议 THRESHOLD: %.0f\n", (hit_avg + miss_avg) / 2);
         }
     }
     return 0;
