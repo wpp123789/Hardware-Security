@@ -62,7 +62,7 @@ int main() {
 
     char *msg = "HELLO";
 
-    while (1) {
+ /*  while (1) {
         printf("[Sender] Sending preamble + message: %s\n", msg);
         fflush(stdout);
 
@@ -79,8 +79,13 @@ int main() {
         send_byte(addr, 0x00);
 
         usleep(200000); // 200ms 间隔
+   }
+*/ 
+// 临时测试：一直发1
+    while(1) {
+        load_addr(addr);
+        usleep(BIT_US);
     }
-
     munmap(map, MAP_SIZE);
     close(fd);
     return 0;
