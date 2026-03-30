@@ -27,7 +27,7 @@ int sample_bit(void *addr, int threshold) {
     _mm_mfence();
 
     // Step2: 等 sender 操作（等窗口的 3/4）
-    usleep(BIT_US * 3 / 4);
+    usleep(BIT_US / 2); 
 
     // Step3: reload 计时
     _mm_mfence();
@@ -39,8 +39,7 @@ int sample_bit(void *addr, int threshold) {
     uint64_t t = t1 - t0;
 
     // Step4: 等剩余 1/4 时间
-    usleep(BIT_US / 4);
-
+    usleep(BIT_US / 2); 
     printf("[dbg] t=%lu %s\n", t, t < threshold ? "HIT" : "MISS");
     fflush(stdout);
 
