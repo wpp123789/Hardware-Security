@@ -10,17 +10,18 @@
 
 void send_bit(void *addr, int bit) {
     if (bit == 1) {
-        // 疯狂读取 1000 次，确保地址在所有 Core 的 Cache 中都变“热”
-        for (int i = 0; i < 1000; i++) {
-            *(volatile uint8_t *)addr;
-            _mm_mfence();
+        // 增加循环次数到 2000，确保信号强度
+        for (int i = 0; i < 2000; i++) {
+            // 使用 volatile 确保读取不会被编译器优化掉
+            (void)*(volatile uint8_t *)addr; 
+            _mm_mfence(); 
         }
     } else {
-        // 彻底清除
         _mm_clflush(addr);
         _mm_mfence();
     }
-    usleep(BIT_INTERVAL); 
+    // 这里的 usleep 必须和 Receiver 的 BIT_INTERVAL 完全匹配
+    usleep(1000); 
 }
 
 int main() {

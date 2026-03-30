@@ -44,7 +44,7 @@ int main() {
 
         if (shift_reg == SYNC_HEADER) {
             printf("\n[SYNC OK] 收到模式: ");
-            usleep(BIT_INTERVAL + (BIT_INTERVAL / 2)); // 跳到第一个数据位中心
+            usleep(1200); // 跳到第一个数据位中心
 
             for (int i = 0; i < 8; i++) {
                 uint64_t rt = reload_t(addr); // 立即读
