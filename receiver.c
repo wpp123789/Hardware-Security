@@ -6,8 +6,8 @@
 #include <dlfcn.h>
 #include <x86intrin.h>
 
-#define BIT_INTERVAL 5000
-#define THRESHOLD 1500   // ⚠️ 用 threshold.c 测出来替换
+#define BIT_INTERVAL 8000
+#define THRESHOLD 520   // ⭐ 你的机器专用
 
 static inline uint64_t rdtscp64() {
     unsigned aux;
@@ -24,6 +24,18 @@ uint64_t reload_time(void *addr) {
     return end - start;
 }
 
+// 🔥 多次采样投票（关键）
+int read_bit(void *addr) {
+    int ones = 0;
+
+    for (int i = 0; i < 5; i++) {
+        uint64_t t = reload_time(addr);
+        if (t < THRESHOLD) ones++;
+    }
+
+    return (ones >= 3) ? 1 : 0;
+}
+
 int main() {
     printf("[Receiver] Starting...\n");
 
@@ -36,9 +48,7 @@ int main() {
         uint8_t c = 0;
 
         for (int i = 0; i < 8; i++) {
-            uint64_t t = reload_time(addr);
-            int bit = (t < THRESHOLD) ? 1 : 0;
-
+            int bit = read_bit(addr);
             c = (c << 1) | bit;
 
             usleep(BIT_INTERVAL);
