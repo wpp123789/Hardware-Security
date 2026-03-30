@@ -22,7 +22,7 @@ void send_bit(void *addr, int bit) {
 }
 
 int main() {
-    // 自动检测 libc 路径
+    // 1. 自动适配不同的系统路径
     const char *libc_path = "/lib64/libc.so.6";
     if (access(libc_path, F_OK) == -1) {
         libc_path = "/lib/x86_64-linux-gnu/libc.so.6";
@@ -30,20 +30,25 @@ int main() {
 
     int fd = open(libc_path, O_RDONLY);
     if (fd < 0) {
-        perror("Open libc failed");
+        perror("无法打开 libc 文件 (open failed)");
         return 1;
     }
 
-    // 映射并寻找偏移量 (根据你的系统微调 0x164ac0)
-    void *map_base = mmap(NULL, 1024*1024, PROT_READ, MAP_SHARED, fd, 0);
+    // 2. 映射足够大的空间 (映射 2MB，确保 0x164ac0 在范围内)
+    size_t map_len = 2 * 1024 * 1024; 
+    void *map_base = mmap(NULL, map_len, PROT_READ, MAP_SHARED, fd, 0);
+    
     if (map_base == MAP_FAILED) {
-        perror("mmap failed");
+        perror("内存映射失败 (mmap failed)");
+        close(fd);
         return 1;
     }
-    void *addr = (uint8_t *)map_base + 0x164ac0; 
 
-    uint32_t sync_val = 0x3F2; 
-    printf("[Sender] 正在发送同步信号，目标地址: %p\n", addr);
+    // 3. 计算目标地址
+    void *addr = (uint8_t *)map_base + 0x164ac0;
+
+    // 检查地址是否正常
+    printf("[Receiver] 映射成功！基地址: %p, 监听目标地址: %p\n", map_base, addr);
 
     while (1) {
         for (int i = 9; i >= 0; i--) {
