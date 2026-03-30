@@ -7,16 +7,19 @@
 #include <x86intrin.h>
 #include <string.h>
 
+
 void send_bit(void *addr, int bit) {
     if (bit == 1) {
-        for (int i = 0; i < 300; i++) {
+        // 既然 Hit 只要 26 cycles，我们循环 100 次足以让它驻留
+        for (int i = 0; i < 100; i++) {
             *(volatile uint8_t *)addr;
+            _mm_mfence(); 
         }
     } else {
-        _mm_clflush(addr);
+        _mm_clflush(addr); // 发送 0
     }
     _mm_mfence();
-    usleep(500); // 位间隔：500微秒
+    usleep(1000); // 建议设为 1000us (1ms) 保证稳定性
 }
 
 // 发送一个字节（8位）

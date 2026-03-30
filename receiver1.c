@@ -5,9 +5,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <x86intrin.h>
-
-// 1. 修改为你新版 threshold.c 测出的建议值 (假设现在是 150)
-#define THRESHOLD 150 
+#define THRESHOLD 96
 #define SYNC_HEADER 0x3F2
 // 建议将位间隔提高到 1000us (1ms) 以增加作业的可靠性
 #define BIT_INTERVAL 1000 
@@ -15,12 +13,12 @@
 static inline uint64_t reload_t(void *addr) {
     uint64_t start, end;
     unsigned aux;
-    _mm_mfence();                      // 内存屏障，确保指令顺序
+    _mm_lfence();                      // 屏障
     start = __rdtscp(&aux);
-    *(volatile uint8_t *)addr;         // 核心：直接访问内存地址
-    _mm_lfence();                      // 确保读取完成后再停表
+    *(volatile uint8_t *)addr;         // 纯内存访问
+    _mm_lfence();                      // 确保读取完成
     end = __rdtscp(&aux);
-    _mm_clflush(addr);                 // 测量后立即清除，准备下一次采样
+    _mm_clflush(addr);                 // 测量后清除，等待 Sender 下一次加载
     return end - start;
 }
 
