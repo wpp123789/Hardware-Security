@@ -10,18 +10,18 @@
 
 void send_bit(void *addr, int bit) {
     if (bit == 1) {
-        // 既然 Hit 只要 26 cycles，我们循环 100 次足以让它驻留
+        // 强化信号：循环 100 次纯内存读取
         for (int i = 0; i < 100; i++) {
             *(volatile uint8_t *)addr;
-            _mm_mfence(); 
+            _mm_mfence();
         }
     } else {
-        _mm_clflush(addr); // 发送 0
+        // 发送 0：彻底清除
+        _mm_clflush(addr);
     }
     _mm_mfence();
-    usleep(1000); // 建议设为 1000us (1ms) 保证稳定性
+    usleep(1000); // 必须是 1000，不要改小
 }
-
 // 发送一个字节（8位）
 void send_byte(void *addr, uint8_t byte) {
     for (int i = 7; i >= 0; i--) {
