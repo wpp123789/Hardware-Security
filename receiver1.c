@@ -16,10 +16,9 @@ static inline uint64_t reload_t(void *addr) {
     unsigned aux;
     _mm_lfence();
     start = __rdtscp(&aux);
-    *(volatile uint8_t *)addr; // 纯内存读取
+    *(volatile uint8_t *)addr;
     _mm_lfence();
     end = __rdtscp(&aux);
-    _mm_clflush(addr); // 采样后立刻清除，等待 Sender 下一次加载
     return end - start;
 }
 int main() {
@@ -50,10 +49,10 @@ int main() {
             while(1) {
                 uint8_t c = 0;
                 for (int i = 0; i < 8; i++) {
-                    // 等待一个完整的位间隔
+                    usleep(BIT_INTERVAL); 
                     uint64_t t = reload_t(addr);
                     c=(c<<1) | ((t < THRESHOLD) ? 1 : 0);
-                    usleep(BIT_INTERVAL); // 等待下一个位间隔
+                    
                    
                 }
                 
