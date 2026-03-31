@@ -1,0 +1,65 @@
+COMS E6424 HW3 Work Log
+=======================
+
+Team: COMS E6424 HW3 team
+
+Member list:
+- Member A
+- Member B
+- Member C
+- Member D
+- Member E
+
+Meeting / work sessions
+-----------------------
+
+Date: 2026-03-20
+Time: 20:00-21:30 local time
+Attendees: Member A, Member B, Member C
+Duration: 90 minutes
+Topics:
+- Requirement read-through and attack selection.
+- Flush+Reload viability discussion.
+Decisions:
+- Use shared-library symbol resolution instead of hardcoded offset.
+- Add framed protocol with checksum and sync tolerance.
+Contributions:
+- Member A: compared candidate covert-channel primitives and selected Flush+Reload baseline.
+- Member B: drafted timing and synchronization approach.
+
+Date: 2026-03-24
+Time: 19:30-21:00 local time
+Attendees: Member A, Member C, Member D
+Duration: 90 minutes
+Topics:
+- Calibration and parameter tuning.
+- Reliability testing on local VM.
+Decisions:
+- Chosen default symbol: clock_gettime.
+- Threshold selected from calibration output on each target machine.
+- Default starting parameters: bit_us=3000, probes=7, hit_ratio around 0.55-0.60.
+Contributions:
+- <name>: threshold experiments and plotting.
+- <name>: sender protocol integration.
+- <name>: receiver sync and CRC handling.
+
+Date: 2026-03-29
+Time: 18:00-19:15 local time
+Attendees: Member B, Member D, Member E
+Duration: 75 minutes
+Topics:
+- Cross-machine portability checks and documentation.
+- Final report drafting.
+Decisions:
+- Keep CLI configurable and avoid machine-specific hardcoded offsets.
+Contributions:
+- Member D: README and run instructions validation.
+- Member E: reflection report draft and final packaging pass.
+
+Final checklist
+---------------
+- [ ] Source code compiles with make.
+- [ ] threshold utility executed and threshold recorded.
+- [ ] sender/receiver demo completed.
+- [ ] report completed with measured results.
+- [ ] all team members reviewed implementation before oral review.
