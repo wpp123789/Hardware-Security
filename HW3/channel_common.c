@@ -149,8 +149,12 @@ void ch_destroy_target(ch_target_t *target) {
 }
 
 uint64_t ch_rdtscp64(void) {
+    unsigned lo = 0;
+    unsigned hi = 0;
     unsigned aux = 0;
-    return __rdtscp(&aux);
+    __asm__ volatile("rdtscp" : "=a"(lo), "=d"(hi), "=c"(aux) ::);
+    (void)aux;
+    return ((uint64_t)hi << 32) | lo;
 }
 
 uint64_t ch_measure_access_cycles(void *addr) {
